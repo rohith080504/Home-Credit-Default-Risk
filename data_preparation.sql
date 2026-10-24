@@ -3,6 +3,7 @@ CREATE DATABASE home_credit_default_risk
 USE home_credit_default_risk
 
 ## Aggregating the bureau dataset by grouping applicant_id's
+    
 CREATE TABLE bureau_aggregated AS
 SELECT 
     applicant_id,
@@ -25,3 +26,38 @@ SELECT
 FROM bureau
 GROUP BY applicant_id;
 
+## Aggregating the credit_card_balance dataset by grouping applicant id's
+
+CREATE TABLE credit_card_aggregated AS
+SELECT 
+    applicant_id,
+    
+    -- 1. History & Volume
+    COUNT(MONTHS_BALANCE) AS cc_total_months_history,
+    COUNT(DISTINCT SK_ID_PREV) AS cc_total_cards,
+    
+    -- 2. Balance & Credit Utilization
+    MAX(AMT_BALANCE) AS cc_max_balance,
+    AVG(AMT_BALANCE) AS cc_avg_balance,
+    
+    -- Ratios safely rounded to 4 decimal places
+    ROUND(MAX(AMT_BALANCE / (AMT_CREDIT_LIMIT_ACTUAL + 1.0)), 4) AS cc_max_utilization_ratio,
+    ROUND(AVG(AMT_BALANCE / (AMT_CREDIT_LIMIT_ACTUAL + 1.0)), 4) AS cc_avg_utilization_ratio,
+    
+    -- 3. Cash Desperation (ATM Withdrawals)
+    SUM(AMT_DRAWINGS_ATM_CURRENT) AS cc_total_atm_drawings,
+    SUM(CNT_DRAWINGS_ATM_CURRENT) AS cc_total_atm_drawing_count,
+    
+    -- 4. Minimum Payment Stress
+    SUM(CASE 
+        WHEN AMT_PAYMENT_CURRENT <= AMT_INST_MIN_REGULARITY 
+        AND AMT_INST_MIN_REGULARITY > 0 
+        THEN 1 ELSE 0 
+    END) AS cc_months_min_payment_only,
+    
+    -- 5. Delinquency (Days Past Due)
+    MAX(SK_DPD) AS cc_max_days_past_due,
+    SUM(CASE WHEN SK_DPD > 0 THEN 1 ELSE 0 END) AS cc_months_with_delinquency
+
+FROM credit_card_balance
+GROUP BY applicant_id;
